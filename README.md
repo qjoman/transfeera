@@ -214,7 +214,7 @@ Dois pontos ficaram em aberto nesta etapa:
 # Análise de dados
 
 ## Considerações iniciais
-Sempre informação comentado nas próximas áreas possuir dados, eles estão presentes no diretórios `/dados/` e serão referênciados com links. A diferença entre muitos dos gráficos abaixo e estes dados é aplicação de filtros sobre o cliente pois é impraticável visualizar volumes de transação por tipo por cliente (são mais de 100 clientes).
+Sempre que algum dado for referenciado e houver algum arquivo CSV disponível, eles estão presentes no diretórios `/dados/` e serão referênciados com links. A diferença entre muitos dos gráficos abaixo e estes dados é aplicação de filtros sobre o cliente pois é impraticável visualizar volumes de transação por tipo por cliente (são mais de 100 clientes).
 
 ## Análise de volume
 
