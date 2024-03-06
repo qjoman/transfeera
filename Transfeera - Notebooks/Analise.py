@@ -97,21 +97,11 @@ def destacar_semana(data_labels = data_labels):
 
 # COMMAND ----------
 
-def sma(data, window_size):
-    sma_values = []
-    for i in range(len(data) - window_size + 1):
-        window = data[i:i+window_size]
-        sma = np.mean(window)
-        sma_values.append(sma)
-    return sma_values
-
-# COMMAND ----------
-
 transacoes_do_mes = (
     faturamento.select(
         "id_cliente", "data", "quantidade_boleto", "quantidade_payout", "quantidade_payin"
     )
-    .groupBy("data", "id_cliente")
+    .groupBy("data", "id_cliente", "tipo")
     .agg(
         sum("quantidade_boleto").alias("quantidade_boleto"),
         sum("quantidade_payout").alias("quantidade_payout"),
