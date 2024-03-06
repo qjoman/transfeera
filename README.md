@@ -1,25 +1,25 @@
 # Analytics Engineer - Transfeera
 ## Tecnologias
-Inicialmente o projeto iria ser desenvolvido em pyspark/Jupyter mas por questão de gestão de tempo, optei por utilizar um ambiente já pronto para uso: Azure Databricks. Apesar do custo elevado, escolhendo as opções corretas foi possível utilizar o produto com custos quase nulos. 
+O projeto inicialmente seria desenvolvido em pyspark/Jupyter, mas por questão de gestão de tempo optei por utilizar um ambiente já pronto para uso: Azure Databricks. Apesar do custo elevado, escolhendo as opções corretas foi possível utilizar o produto com custos quase nulos. 
 
-Uma opção utilizada inicialmente foi o Databricks Community mas infelizmente ele é bem limitado a forma como armazenar dados e clusters constantemente precisam ser recriados graças a limitação de spots pra usuários de forma gratuita.
+Uma opção utilizada inicialmente foi o Databricks Community mas infelizmente ele é bem limitado na forma de como armazenar dados e clusters constantemente precisam ser recriados graças à limitação de spots para usuários de forma gratuita.
 
-Principal linguagem é Python com PySpark e algumas área em SQL (ETL).
+A principal linguagem é Python com PySpark e algumas área em SQL (ETL).
 
 ## Modelo de dados
 O modelo original é bem simples, tendo apenas 3 entidades: cliente, contrato e transação.
 
 ![Modelo original](/imagens/Origem_Transfeera.png)
 
-Transação é um registro de transação financeira de um tipo especifico. Um cliente pode fazer qualquer número de transações em um dado dia até mesmo nenhuma transação. Esse limite superior aberto chama atenção porque analisar dados de um cliente que realiza milhares (ou mais operações) num dia, por exemplo, tem um custo computacional muito alto.
+Transação é um registro de transação financeira de um tipo específico. Um cliente pode fazer qualquer número de transações em um dado dia ou até mesmo nenhuma transação. Esse limite superior aberto chama atenção, porque analisar dados de um cliente que realiza milhares de operações (ou mais) num dia, por exemplo, tem um custo computacional muito alto.
 
-Preciso destacar que a transação não tem dados de fatura, estes dados ficando dentro do contrato. A relação de cliente e contrato me levantou outra questão: um cliente tem somente um contrato? 
+É preciso destacar que a transação não tem dados de fatura, esses dados ficando apenas dentro do contrato. A relação de cliente e contrato me levantou outra questão: um cliente tem somente um contrato? 
 
-Pensando nestes pontos acima, prôpos a estrutura abaixo.
+Pensando nos pontos acima, proponho a seguinte estrutura.
 
 ![Modelo novo](/imagens/DW_Transfeera.png)
 
-Nesse modelo, adotei as práticas da modelagem de star schema, onde a transação é o fato central **fact_transacao** e as dimensões são cliente e contrato. Até aqui, não há mudanças no modelo, além da introdução do contrato na transação: agora, caso o cliente mude o contrato válido, transações no passado ainda estão ligadas ao antigo contrato, sem necessidade de queries complexas. 
+Nesse modelo adotei as práticas da modelagem de star schema, onde a transação é o fato central **fact_transacao** e as dimensões são cliente e contrato. Até aqui, não há mudanças no modelo, além da introdução do contrato na transação. Porém, caso o cliente mude o contrato válido, transações no passado ainda estarão ligadas ao antigo contrato, sem necessidade de queries complexas. 
 
 ```
 Table fact_transacao{
@@ -35,7 +35,7 @@ Table fact_transacao{
 
 A segunda alteração foi inclusão da tabela de sumário **fact_transacao_dia** para sumários diários de transações. Ela será alimentada uma vez por dia com dados de transação do dia anterior já computados, permitindo realizar queries de maneira muito mais simples. 
 
-Esta tabela não possui qualquer ligação com o horário de transações, se o nível de granulidade da busca for à este nível, utilize a tabela **fact_transacao**.
+Essa tabela não possui qualquer ligação com o horário de transações, se o nível de granulidade da busca for nesse nível, utilize a tabela **fact_transacao**.
 
 ```
 Table fact_transacoes_dia{
@@ -79,7 +79,7 @@ Table dim_contrato{
 }
 ```
 
-Por fim, foi adicionado a dimensão de tempo **dim_tempo**. Tempo é utilizado como dimensão em star schemas por facilitar buscas em datas de maneira a ser independentes da tecnologia do banco e permitir relatórios mais limpos sem grande dificuldade ao disponibilizar `INT` ao invez de objetos `DATE/DATETIME/TIMESTAMP`.
+Por fim, foi adicionado a dimensão de tempo **dim_tempo**. Tempo é utilizado como dimensão em star schemas por facilitar buscas em datas de maneira a ser independente da tecnologia do banco e permitir relatórios mais limpos sem grande dificuldade ao disponibilizar `INT` ao invés de objetos `DATE/DATETIME/TIMESTAMP`.
 
 Um exemplo de query utilizando a `dim_tempo`:
 ```
@@ -96,33 +96,33 @@ WHERE
     dt.mes = 4 AND dia > 5 AND dia < 20
 ```
 
-Fatos são denotados pela nomeclatura `fact_NOME_DO_FATO` e dimensões como `dim_NOME_DA_DIMENSAO`. Além das tabelas citadas acima, ainda há **dim_contrato** e **dim_cliente**. Além da troca de nome de algumas colunas (para padronização), não há grandes alterações nestas tabelas.
+Fatos são denotados pela nomeclatura `fact_NOME_DO_FATO` e dimensões como `dim_NOME_DA_DIMENSAO`. Além das tabelas citadas acima, ainda há **dim_contrato** e **dim_cliente**. Além da troca de nome de algumas colunas (para padronização), não há grandes alterações nessas tabelas.
 
 
 # ETL
 O processo de ETL no sistema deve acontecer em 3 momentos distintos:
-- Boostrap, criando o schema do modelo final
-- A cada intervalo de tempo a ser definido
-- No primeiro minuto de cada dia
+- Boostrap, criando o schema do modelo final.
+- A cada intervalo de tempo a ser definido.
+- No primeiro minuto de cada dia.
 
 ## Bootstrap 
 
 Este (notebook)[/Transfeera+-+0Notebooks/ETL:boostrap.py] deve ser utilizado manualmente somente uma vez. Os passos são descritos abaixo.
-1) Criar um ambiente de staging onde os dados novos serão armazenados
-2) Criar o modelo final como descrito acima
-3) Carregar os dados na área de staging
-4) Popular as tabelas do modelo final utilizando dados de staging
+1) Criar um ambiente de staging onde os dados novos serão armazenados.
+2) Criar o modelo final como descrito acima.
+3) Carregar os dados na área de staging.
+4) Popular as tabelas do modelo final utilizando dados de staging.
 5) Popular **dim_tempo** usando a maior e menor data dos dados de transação.
-6) Computar **fact_transacoes_dia**
-7) Limpar área de staging
+6) Computar **fact_transacoes_dia**.
+7) Limpar área de staging.
 
 ## Atualizar por intervalo de tempo
 
-Similar ao processo de bootstrap mas utilizando Databricks Workflows para definição de CRON job. O diagrama abaixo descreve o processo visualmente como presente no job. Note que o código dos notebooks é a descrição dos passos acima.
+Similar ao processo de bootstrap, mas utilizando Databricks Workflows para definição de CRON job. O diagrama abaixo descreve o processo visualmente como presente no job. Note que o código dos notebooks é a descrição dos passos acima.
 
 ![diagrama de tarefas para atualização](/imagens/etl.png)
 
-Há a possibilidade de execução continua mas o custo financeiro pra este tipo de operação é alto e não foi apresentado o tipo de orçamento pro projeto, logo, o modo scheduled (CRON job) deve ser considerado a melhor opção.
+Existe a possibilidade de execução contínua mas o custo financeiro para esse tipo de operação é alto e não foi apresentado o tipo de orçamento pro projeto, logo, o modo scheduled (CRON job) deve ser considerado a melhor opção.
 
 ## Atualização de fact_transacoes_dia
 
@@ -207,14 +207,14 @@ WHERE
 ## Considerações sobre ETL
 
 Dois pontos ficaram em aberto nesta etapa:
-1) Modificar os notebooks de consulta de dados de bancos externos para incluir a janela de busca. Por exemplo, executar a cada 2 minutos, buscando as transações desta janela (incluindo cliente e contratos)
-2) Desenvolver mecânismos de recuperação de falhas. Se uma conexão falhar, a próxima ira consumir dados da sua janela, ignorando os dados ausentes pela falha.
+1) Modificar os notebooks de consulta de dados de bancos externos para incluir a janela de busca. Por exemplo: executar a cada 2 minutos, buscando as transações dessa janela (incluindo cliente e contratos).
+2) Desenvolver mecanismos de recuperação de falhas. Se uma conexão falhar, a próxima irá consumir dados da sua janela, ignorando os dados ausentes pela falha.
 
 
 # Análise de dados
 
 ## Considerações iniciais
-Sempre que algum dado for referenciado e houver algum arquivo CSV disponível, eles estão presentes no diretórios `/dados/` e serão referênciados com links. A diferença entre muitos dos gráficos abaixo e estes dados é aplicação de filtros sobre o cliente pois é impraticável visualizar volumes de transação por tipo por cliente (são mais de 100 clientes).
+Sempre que algum dado for referenciado e houver algum arquivo CSV disponível, eles estão presentes no diretório `/dados/` e serão referenciados com links. A diferença entre muitos dos gráficos abaixo e esses dados é a aplicação de filtros sobre o cliente, pois é impraticável visualizar volumes de transação por tipo por cliente (são mais de 100 clientes).
 
 ## Análise de volume
 
@@ -241,7 +241,7 @@ transacoes_do_mes = (
     )
 )
 ```
-Filtrando pelo id_cliente 1, temos os gráficos abaixo. Foram adicionados colunas verticais para demarcar os domingos, bem como uma linha de média móvel de 5 dias.
+Filtrando pelo id_cliente 1, temos os gráficos abaixo. Foram adicionadas colunas verticais para demarcar os domingos, bem como uma linha de média móvel de 5 dias.
 
 |![Volume boleto cliente id 1](/imagens/volume_boleto_diaro_cliente_1.png)|
 |:--:| 
@@ -249,13 +249,13 @@ Filtrando pelo id_cliente 1, temos os gráficos abaixo. Foram adicionados coluna
 |![Volume payout cliente id 1](/imagens/volume_payout_diaro_cliente_1.png)|
 | *[dados](/dados/volume_tipo_transacao.csv)* |
 
-Notando as transações altas nas primeiras semansa de Novembro/Dezembro, presumi uma tendência de crescimento pela época do ano mas não poderia simplesmente assumir isso. Resolvi fazer a quebra de transações por segmento dos clientes.
+Notando as transações altas nas primeiras semanas de Novembro/Dezembro, presumi uma tendência de crescimento pela época do ano mas não poderia simplesmente assumir isso. Resolvi fazer a quebra de transações por segmento dos clientes.
 
 |![Volume por segmento](/imagens/transacoes_segmentos.png)|
 |:--:| 
 | *[dados](/)* |
 
-Novamente, inclui o domingo no gráfico e ficou mais evidente com outros clientes a tendência ao aumento. A maneira mais simples de confirmar seria então com regressão linear. PySpark possui uma lib pra modelos de ML com uma função para criar modelos de regressão. Uma pequena função genérica foi feita para facilitar o a criação dos gráficos, por isso todos eles tem a mesma aparência. Todos eles foram alimentados com training set usando todos os valores da série.
+Novamente, incluí o domingo no gráfico e ficou mais evidente com outros clientes a tendência ao aumento. A maneira mais simples de confirmar seria então com regressão linear. PySpark possui uma lib pra modelos de ML com uma função para criar modelos de regressão. Uma pequena função genérica foi feita para facilitar a criação dos gráficos, por isso todos eles têm a mesma aparência. Todos eles foram alimentados com training set usando todos os valores da série.
 
 |![RL de varejo](/imagens/rl_transacoes_varejo.png)| 
 |:--:| 
@@ -282,14 +282,14 @@ Novamente, inclui o domingo no gráfico e ficou mais evidente com outros cliente
 | Root Mean Squared Error (RMSE): 11.951454440867437 |
 | *[dados](/dados/rl_transacoes_servicos.csv)* |
 
-Apesar de visualmente ser perceptível a têndencias das transações, não posso afirmar que essa seja a abordagem correta, em especial por não conseguir validar os modelos.
-Existem validadores de modelo dentro da PySpark que poderiam me informar com mais detalhes mas a única métria que consigo trabalhar no momento é RMSE, presente junto em cada gráfico.
+Apesar de visualmente serem perceptíveis as têndencias das transações, não posso afirmar que essa seja a abordagem correta, em especial por não conseguir validar os modelos.
+Existem validadores de modelo dentro da PySpark que poderiam me informar com mais detalhes, mas a única métrica que consigo trabalhar no momento é RMSE, presente abaixo de cada gráfico.
 
 ## Análise de uso por cliente
 
-Não há muito aqui, uma vez que se consideramos que transação ocorre quando há uso do produto, já temos o uso ou não do sistema.
+Não há muito aqui, uma vez que se considerarmos que transação ocorre quando há uso do produto, já temos o uso ou não do sistema.
 
-Para testar que com caso de gaps nos dados, apliquei um filtro de data que incluia data fora do limite dos dados existentes (não há dados após o começo do ano) e assumi que todo dia não havia uso do produto. Por fim inclui o valor total movido na data em questão, achei visualizar tanto uso quanto valor movido, talvez houvesse alguma relação ainda não vista.
+Para testar o caso de gaps de uso (os dados fornecidos tem todos os dias preenchidos), apliquei um filtro de data que incluía data fora do limite dos dados existentes e assumi que todo dia não havia transação (causados pelo filtro ), não havia uso do produto. Por fim, incluí o valor total movido na data em questão, achei que ao visualizar tanto o uso quanto o valor movido, talvez houvesse alguma relação ainda não vista.
 
 ![Uso do sistema, simulando gaps](/imagens/usos_por_dia.png)
 
@@ -297,7 +297,7 @@ Talvez seja interessante incluir aqui a sazonalidade por cliente.
 
 ## Faturamento por cliente
 
-Faturamento do cliente é, novamente, relativamente simples. A `fact_transacoes_dia` já possui os valores do dia por tipo e também possui o id do contrato relativo a transacao (considerei que podem haver dados no passado com outros contratos e taxas). Um `join` entre contrato e `fact_transacoes_di` já traz todas as informações relevantes, sendo necessário apenas multiplicar as taxas pelos valors.
+Faturamento do cliente é, novamente, relativamente simples. A `fact_transacoes_dia` já possui os valores do dia por tipo e também possui o id do contrato relativo a transacao (considerei que pode haver dados no passado com outros contratos e taxas). Um `join` entre contrato e `fact_transacoes_di` já traz todas as informações relevantes, sendo necessário apenas multiplicar as taxas pelos valores.
 
 ```
 transacoes_df = (
@@ -334,7 +334,7 @@ transacoes_df = (
 |:--:| 
 |*[dados](/dados/valores_dia_tipo.csv)*|
 
-Abaixo, temos a demonstração gráfica do faturamento no periodo. A maior contribuição vem de boletos e payouts, payin dificilmente chegando a metade dos valores de payout.
+Abaixo, temos a demonstração gráfica do faturamento no período. A maior contribuição vem de boletos e payouts, payin dificilmente chegando à metade dos valores de payout.
 
 |![valor faturamento](/imagens/valores_faturamento_diario_tipos_cliente_1.png)| 
 |:--:| 
@@ -366,7 +366,7 @@ Usando a mesma ideia anterior, trouxe os dados de valores movidos nos diferentes
 
 ![valor por segmento](/imagens/valores_segmento.png)
 
-Há, novamente, uma movimentação em Dezembro. Tanto indústria quanto tecnologia tem uma queda.
+Há, novamente, uma movimentação em Dezembro. Tanto indústria quanto tecnologia têm uma queda.
 
 |![RL valor ](/imagens/rl_valores_varejo.png)| 
 |:--:| 
@@ -420,11 +420,11 @@ Há, novamente, uma movimentação em Dezembro. Tanto indústria quanto tecnolog
 |  Root Mean Squared Error (RMSE): 59743.29320062869 |
 |*[dados](/dados/rl_faturamento_servicos.csv)*|
 
-Analisando os gráficos acimas, os segmentos de varejo e financeiro são os que apresentam maiores crescimento.  Tecnologia e industria apresentam alguns outliers, não sei identificar o quanto isso influência na série.
+Analisando os gráficos acima, os segmentos de **varejo** e **financeiro** são os que apresentam maior crescimento.  **Tecnologia** e **indústria** apresentam alguns outliers, não sei identificar o quanto isso influência na série.
 
 # Outros modelos
 
-Foi tentado aplica os modelos ARMA/ARIMA/SARIMAX sem muitos resultados positivos. ACF/PACF mostraram que os melhores candidatos pra (p,q) é 0, indicando inexistência de autocorrelação nos dados. Por ser uma área que não domino, preferi abandonar a ideia. Abaixo alguns dos resultados obtidos.
+Tentei aplicar os modelos ARMA/ARIMA/SARIMAX sem muitos resultados positivos. ACF/PACF mostraram que o melhor candidato para **p**,**q** é 0, indicando inexistência de autocorrelação nos dados. Por ser uma área que não domino, preferi abandonar a ideia. Abaixo alguns dos resultados obtidos.
 
 - [ARMA](/imagens/ARMA.png)
 - [ARIMA](/imagens/ARIMA.png)
@@ -435,10 +435,10 @@ Foi tentado aplica os modelos ARMA/ARIMA/SARIMAX sem muitos resultados positivos
 
 # Considerações finais
 
-Quebra as séries por tipo de transação e segmento foi algo que me ocorre momento da escrita deste documento. Talvez alguns tipos de transação sejam mais padrão em alguns segmentos.
+Quebra das séries por tipo de transação e segmento foi algo que me ocorreu no momento da escrita deste documento. Talvez alguns tipos de transação sejam mais padrão em alguns segmentos.
 
-Está além do meu conhecimento mas acredito que seja possível criar perfis de cliente cruzando as informações mostradas aqui. Por exemplo, cruzando o tipo de transação com o segmento do cliente.
+Está além do meu conhecimento, mas acredito que seja possível criar perfis de cliente cruzando as informações mostradas aqui. Por exemplo, cruzando o tipo de transação com o segmento do cliente.
 
-Também é possível identificar eventos sazonais e qual a janela destes eventos conforme segmentos, talvez seja isso observado nos meses de Novembro/Dezembro.
+Também é possível identificar eventos sazonais e qual a janela desses eventos conforme segmentos, talvez seja isso que foi observado nos meses de Novembro/Dezembro.
 
-Por fim, embora minhas tentativas de usar modelos diferentes tenham sido falhas, existe uma lista enorme de possibilidades ali, sendo só necessário identificar qual destes se encaixa neste caso.
+Por fim, embora minhas tentativas de usar modelos diferentes tenham sido falhas, existe uma lista enorme de possibilidades ali, sendo somente necessário identificar qual desses se encaixaria nesse caso.
