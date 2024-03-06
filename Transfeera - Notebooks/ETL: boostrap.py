@@ -1,11 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Ingestão de dados
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Criando area de staging
+# MAGIC # Criando area de staging
 # MAGIC Primeiro passo é a criação de um espaço de stagging onde os dados inalterados são copiados para realização do trabalho. Estas tabelas possuem a mesma estrutura dos dados da origem. Por segurança, estas tabelas são recriadas sempre que o processo for realizado.
 
 # COMMAND ----------
